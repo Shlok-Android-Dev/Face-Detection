@@ -2,22 +2,34 @@
 package com.example.facedetector
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageFormat
 import android.graphics.Rect
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import android.widget.ImageView
+import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.*
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.example.facedetector.R.color
+import com.example.facedetector.R.color.*
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.Face
 import com.google.mlkit.vision.face.FaceDetection
@@ -28,20 +40,25 @@ import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
 
+    private var imageCaptured = false // To capture image only once
     private lateinit var cameraPreview: PreviewView
     private lateinit var miniPreview: ImageView
     private lateinit var cameraExecutor: ExecutorService
-    private var imageCaptured = false // To capture image only once
-    private lateinit var logout :ImageView
+    private lateinit var logout: ImageView
+    private lateinit var icYesPeople: ImageView
+    private lateinit var icScan: ImageView
+    private lateinit var tvScannedData: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
         logout = findViewById(R.id.logout)
-
-
         cameraPreview = findViewById(R.id.cameraPreview)
         miniPreview = findViewById(R.id.miniPreview)
+        icYesPeople = findViewById(R.id.ic_yes_people)
+        icScan = findViewById(R.id.ic_scan)
+        tvScannedData = findViewById(R.id.tvScannedData)
 
         // Request camera permission
         if (allPermissionsGranted()) {
@@ -68,7 +85,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun allPermissionsGranted() = ActivityCompat.checkSelfPermission(
-        this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        this, Manifest.permission.CAMERA
+    ) == PackageManager.PERMISSION_GRANTED
 
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
@@ -82,8 +100,7 @@ class MainActivity : AppCompatActivity() {
             val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
 
             val imageAnalysis = ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .build()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
 
             imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
                 processImageProxy(imageProxy)
@@ -104,70 +121,117 @@ class MainActivity : AppCompatActivity() {
     private fun processImageProxy(imageProxy: ImageProxy) {
         val mediaImage = imageProxy.image
         if (mediaImage != null) {
-            val inputImage = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+            val inputImage =
+                InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
             detectFace(inputImage, imageProxy)
+
+            // Detect QR codes
+            detectQrCode(inputImage)
         }
     }
 
     private fun detectFace(image: InputImage, imageProxy: ImageProxy) {
         val options = FaceDetectorOptions.Builder()
-            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
             .setContourMode(FaceDetectorOptions.CONTOUR_MODE_NONE)
-            .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
-            .build()
+            .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE).build()
+
 
         val detector = FaceDetection.getClient(options)
-        detector.process(image)
-            .addOnSuccessListener { faces ->
-                if (faces.size == 1 && !imageCaptured) { // Capture image only for one face
-                    captureFace(faces.first(), imageProxy)
-                } else {
-                    imageProxy.close() // Close if not a single face
+        detector.process(image).addOnSuccessListener { faces ->
+            if (faces.size == 1 && !imageCaptured) { // Capture image only for one face
+
+                runOnUiThread {
+                    icYesPeople.visibility = View.VISIBLE
+                    icScan.visibility = View.GONE
+                }
+                captureFace(faces.first(), imageProxy)
+            } else {
+                imageProxy.close() // Close if not a single face
+            }
+        }.addOnFailureListener { e ->
+            Log.e("MainActivity", "Face detection failed", e)
+            imageProxy.close()
+        }
+    }
+
+    private fun detectQrCode(image: InputImage) {
+
+        val scanner = BarcodeScanning.getClient()
+        scanner.process(image).addOnSuccessListener { barcodes ->
+            for (barcode in barcodes) {
+                when (barcode.valueType) {
+                    Barcode.TYPE_URL -> {
+                        val url = barcode.url?.url
+                        Log.d("MainActivity", "QR Code URL: $url")
+                        if (url != null) {
+
+                            runOnUiThread {
+                                icYesPeople.visibility = View.GONE
+                                icScan.visibility = View.VISIBLE
+                            }
+                            tvScannedData.text = "$url" // Ensure UI update is on main thread
+                            tvScannedData.setTextColor(ContextCompat.getColor(this,R.color.blue))
+
+                            tvScannedData.setOnClickListener {
+                                // Launch an implicit intent to open the URL in the browser
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    data = Uri.parse(url)
+                                }
+                                startActivity(intent) // UI update on main thread
+
+                            }
+
+                        }
+                    }
+
+                    Barcode.TYPE_TEXT -> {
+                        val scannedData = barcode.rawValue
+                        runOnUiThread {
+
+                            tvScannedData.text = scannedData // Ensure UI update is on main thread
+                        }
+                    }
+
+                    else -> {
+                        Log.d("MainActivity", "Other QR code type detected")
+                    }
                 }
             }
-            .addOnFailureListener { e ->
-                Log.e("MainActivity", "Face detection failed", e)
-                imageProxy.close()
-            }
+        }.addOnFailureListener { e ->
+            Log.e("MainActivity", "QR code detection failed", e)
+        }
+
     }
 
     @OptIn(ExperimentalGetImage::class)
     private fun captureFace(face: Face, imageProxy: ImageProxy) {
         val mediaImage = imageProxy.image
         if (mediaImage != null) {
-            // Convert the image to a Bitmap
             val bitmap = imageProxyToBitmap(imageProxy)
-
-            // Get the bounding box of the detected face
             val boundingBox: Rect = face.boundingBox
 
-            // Ensure the bounding box coordinates are within valid bounds
             val left = boundingBox.left.coerceAtLeast(0)
             val top = boundingBox.top.coerceAtLeast(0)
             val right = (boundingBox.left + boundingBox.width()).coerceAtMost(bitmap.width)
             val bottom = (boundingBox.top + boundingBox.height()).coerceAtMost(bitmap.height)
 
-            // Crop the bitmap to the detected face
             val faceBitmap = Bitmap.createBitmap(
-                bitmap,
-                left,
-                top,
-                right - left,
-                bottom - top
+                bitmap, left, top, right - left, bottom - top
             )
 
-            // Set the cropped face bitmap to the mini preview
-            miniPreview.setImageBitmap(faceBitmap)
+            runOnUiThread {
+                miniPreview.setImageBitmap(faceBitmap) // UI update on main thread
+            }
 
             imageCaptured = true // Set flag to prevent further captures
-
-            // Reset imageCaptured after a short delay to allow for new face detection
             imageProxy.close()
             resetImageCapture()
         } else {
             imageProxy.close()
         }
     }
+
 
     private fun resetImageCapture() {
         // Reset the capture flag after a delay to allow for new face detection
@@ -193,13 +257,16 @@ class MainActivity : AppCompatActivity() {
         vBuffer.get(nv21, ySize + uSize, vSize)
 
         // Create a YUV image and convert it to a JPEG for better color representation
-        val yuvImage = android.graphics.YuvImage(nv21, ImageFormat.NV21, imageProxy.width, imageProxy.height, null)
+        val yuvImage = android.graphics.YuvImage(
+            nv21, ImageFormat.NV21, imageProxy.width, imageProxy.height, null
+        )
         val out = ByteArrayOutputStream()
         yuvImage.compressToJpeg(Rect(0, 0, imageProxy.width, imageProxy.height), 100, out)
         val imageBytes = out.toByteArray()
 
         // Decode the JPEG bytes to a Bitmap
-        return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)!!.rotate(imageProxy.imageInfo.rotationDegrees.toFloat())
+        return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)!!
+            .rotate(imageProxy.imageInfo.rotationDegrees.toFloat())
     }
 
     private fun Bitmap.rotate(degrees: Float): Bitmap {
@@ -216,11 +283,9 @@ class MainActivity : AppCompatActivity() {
 }
 
 
-
 /**
  *  version 3 camera detect face and capture image but mini preview is very bad
- *  */
-/*
+ *//*
 package com.example.facedetector
 
 import android.Manifest
@@ -419,11 +484,9 @@ class MainActivity : AppCompatActivity() {
 */
 
 
-
 /**
  *version 2 this can capture image flawless only one face at a time
-*/
-/*package com.example.facedetector
+ *//*package com.example.facedetector
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -604,11 +667,9 @@ class MainActivity : AppCompatActivity() {
 }*/
 
 
-
 /**
  * version 1 only camera work properly
-*/
-/*
+ *//*
 package com.example.facedetector
 
 import android.Manifest

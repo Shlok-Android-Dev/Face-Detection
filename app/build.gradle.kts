@@ -33,6 +33,10 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+
+    buildFeatures{
+        viewBinding = true
+    }
 }
 
 dependencies {
@@ -53,7 +57,10 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.3.4")
     implementation("androidx.camera:camera-view:1.3.4")
 
-// ML Kit Face Detection dependency
+    // ML Kit Face Detection dependency
     implementation("com.google.mlkit:face-detection:16.1.6")
+    // QR code scanning
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+
 
 }
