@@ -26,8 +26,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.example.facedetector.R.color
-import com.example.facedetector.R.color.*
+import com.example.facedetector.R.color.blue
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
@@ -40,11 +39,13 @@ import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
 
+    private var isFrontCamera = true
     private var imageCaptured = false // To capture image only once
+    private lateinit var logout: ImageView
+    private lateinit var flipCam: ImageView
     private lateinit var cameraPreview: PreviewView
     private lateinit var miniPreview: ImageView
     private lateinit var cameraExecutor: ExecutorService
-    private lateinit var logout: ImageView
     private lateinit var icYesPeople: ImageView
     private lateinit var icScan: ImageView
     private lateinit var tvScannedData: TextView
@@ -54,6 +55,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         logout = findViewById(R.id.logout)
+        flipCam = findViewById(R.id.flip)
         cameraPreview = findViewById(R.id.cameraPreview)
         miniPreview = findViewById(R.id.miniPreview)
         icYesPeople = findViewById(R.id.ic_yes_people)
@@ -93,28 +95,44 @@ class MainActivity : AppCompatActivity() {
 
         cameraProviderFuture.addListener({
             val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-            val preview = Preview.Builder().build().also {
-                it.setSurfaceProvider(cameraPreview.surfaceProvider)
-            }
+            bindCameraUseCases(cameraProvider) // Initial binding to the camera
 
-            val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
-
-            val imageAnalysis = ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
-
-            imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                processImageProxy(imageProxy)
-            }
-
-            try {
-                cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
-                    this, cameraSelector, preview, imageAnalysis
-                )
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Use case binding failed", e)
+            // Flip camera on button click
+            flipCam.setOnClickListener {
+                isFrontCamera = !isFrontCamera // Toggle between front and back camera
+                cameraProvider.unbindAll() // Unbind all use cases
+                bindCameraUseCases(cameraProvider) // Bind the camera with the new selector
             }
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun bindCameraUseCases(cameraProvider: ProcessCameraProvider) {
+        val preview = Preview.Builder().build().also {
+            it.setSurfaceProvider(cameraPreview.surfaceProvider)
+        }
+
+        // Select front or back camera based on the toggle state
+        val cameraSelector = if (isFrontCamera) {
+            CameraSelector.DEFAULT_FRONT_CAMERA
+        } else {
+            CameraSelector.DEFAULT_BACK_CAMERA
+        }
+
+        val imageAnalysis = ImageAnalysis.Builder()
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
+
+        imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
+            processImageProxy(imageProxy)
+        }
+
+        try {
+            // Bind the camera selector, preview, and image analysis to the lifecycle
+            cameraProvider.bindToLifecycle(
+                this, cameraSelector, preview, imageAnalysis
+            )
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Use case binding failed", e)
+        }
     }
 
     @OptIn(ExperimentalGetImage::class)
@@ -156,40 +174,74 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun detectQrCode(image: InputImage) {
-
         val scanner = BarcodeScanning.getClient()
         scanner.process(image).addOnSuccessListener { barcodes ->
+
+            // Process each barcode found
             for (barcode in barcodes) {
+                Log.d("detectQrCode", "detectQrCode valueType: ${barcode.valueType}")
+                Log.d("detectQrCode", "detectQrCode url: ${barcode.url}")
+                Log.d("detectQrCode", "detectQrCode boundingBox: ${barcode.boundingBox}")
+                Log.d("detectQrCode", "detectQrCode raw rawValue: ${barcode.rawValue}")
+                Log.d("detectQrCode", "detectQrCode contactInfo: ${barcode.contactInfo}")
+                Log.d("detectQrCode", "detectQrCode email: ${barcode.email}")
+                Log.d("detectQrCode", "detectQrCode phone: ${barcode.phone}")
+                Log.d("detectQrCode", "detectQrCode calendar Event: ${barcode.calendarEvent}")
+                Log.d("detectQrCode", "detectQrCode corner Points: ${barcode.cornerPoints}")
+                Log.d("detectQrCode", "detectQrCode display Value: ${barcode.displayValue}")
+                Log.d("detectQrCode", "detectQrCode driving License: ${barcode.driverLicense}")
+                Log.d("detectQrCode", "detectQrCode format: ${barcode.format}")
+                Log.d("detectQrCode", "detectQrCode geoPoint: ${barcode.geoPoint}")
+                Log.d("detectQrCode", "detectQrCode raw Bytes: ${barcode.rawBytes}")
+                Log.d("detectQrCode", "detectQrCode sma: ${barcode.sms}")
+                Log.d("detectQrCode", "detectQrCode wifi : ${barcode.wifi}")
                 when (barcode.valueType) {
-                    Barcode.TYPE_URL -> {
+                            Barcode.TYPE_URL -> {
                         val url = barcode.url?.url
                         Log.d("MainActivity", "QR Code URL: $url")
-                        if (url != null) {
 
+                        if (url != null) {
+                            // Update TextView with URL
                             runOnUiThread {
                                 icYesPeople.visibility = View.GONE
                                 icScan.visibility = View.VISIBLE
-                            }
-                            tvScannedData.text = "$url" // Ensure UI update is on main thread
-                            tvScannedData.setTextColor(ContextCompat.getColor(this,R.color.blue))
+                                tvScannedData.text = url // Update with new URL
+                                tvScannedData.setBackgroundColor(getColor(R.color.white))
+                                tvScannedData.setTextColor(
+                                    ContextCompat.getColor(
+                                        this,
+                                        blue
+                                    )
+                                )
 
-                            tvScannedData.setOnClickListener {
-                                // Launch an implicit intent to open the URL in the browser
-                                val intent = Intent(Intent.ACTION_VIEW).apply {
-                                    data = Uri.parse(url)
+                                // Set click listener for launching the URL in the browser
+                                tvScannedData.setOnClickListener {
+                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                        data = Uri.parse(url)
+                                    }
+                                    startActivity(intent)
                                 }
-                                startActivity(intent) // UI update on main thread
-
                             }
-
                         }
                     }
 
                     Barcode.TYPE_TEXT -> {
                         val scannedData = barcode.rawValue
+                        // Update TextView with scanned text
                         runOnUiThread {
+                            icYesPeople.visibility = View.GONE
+                            icScan.visibility = View.VISIBLE
+                            tvScannedData.text = scannedData // Display the scanned text
+                        }
+                    }
 
-                            tvScannedData.text = scannedData // Ensure UI update is on main thread
+                    Barcode.TYPE_CONTACT_INFO -> {
+                        val scannedData = barcode.rawValue
+                        // Update TextView with scanned text
+                        runOnUiThread {
+                            icYesPeople.visibility = View.GONE
+                            icScan.visibility = View.VISIBLE
+                            tvScannedData.text = scannedData // Display the scanned text
                         }
                     }
 
@@ -201,8 +253,8 @@ class MainActivity : AppCompatActivity() {
         }.addOnFailureListener { e ->
             Log.e("MainActivity", "QR code detection failed", e)
         }
-
     }
+
 
     @OptIn(ExperimentalGetImage::class)
     private fun captureFace(face: Face, imageProxy: ImageProxy) {

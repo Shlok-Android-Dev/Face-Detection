@@ -29,6 +29,17 @@
 
 
     <ImageView
+        android:id="@+id/flip"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:layout_margin="16dp"
+        android:src="@drawable/ic_flip"
+
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+
+    <ImageView
         android:id="@+id/ic_yes_people"
         android:layout_width="0dp"
         android:layout_height="match_parent"
@@ -50,31 +61,34 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Mini Preview for Captured Face -->
-    <ImageView
-        android:id="@+id/miniPreview"
-        android:layout_width="120dp"
-        android:layout_height="120dp"
-        android:layout_margin="16dp"
-        android:layout_marginBottom="16dp"
-        android:src="@drawable/ic_scann"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
-
-    <TextView
-        android:id="@+id/tvScannedData"
-        android:layout_width="match_parent"
+    <LinearLayout
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="10dp"
-        android:layout_marginRight="10dp"
-        android:layout_marginBottom="50dp"
-        android:gravity="center"
-        android:text="Bar Code Scanner"
-        android:textColor="@android:color/white"
-        android:textSize="20sp"
+        android:orientation="horizontal"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.5"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintStart_toStartOf="parent">
+
+
+        <!-- Mini Preview for Captured Face -->
+        <ImageView
+            android:id="@+id/miniPreview"
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:layout_margin="16dp"
+            android:src="@drawable/ic_scann"
+             />
+
+        <TextView
+            android:id="@+id/tvScannedData"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="16dp"
+            android:text="Bar Code Scanner"
+            android:textColor="@color/white"
+            android:textSize="20sp"
+             />
+    </LinearLayout>
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>
