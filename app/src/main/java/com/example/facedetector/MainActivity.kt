@@ -2,6 +2,9 @@
 package com.example.facedetector
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -11,9 +14,11 @@ import android.graphics.Rect
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.util.Patterns
 import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
@@ -27,6 +32,7 @@ import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.facedetector.R.color.blue
+import com.example.facedetector.R.color.yellow
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
@@ -150,7 +156,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun detectFace(image: InputImage, imageProxy: ImageProxy) {
         val options = FaceDetectorOptions.Builder()
-            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
+            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
             .setContourMode(FaceDetectorOptions.CONTOUR_MODE_NONE)
             .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE).build()
 
@@ -180,7 +186,7 @@ class MainActivity : AppCompatActivity() {
             // Process each barcode found
             for (barcode in barcodes) {
                 Log.d("detectQrCode", "detectQrCode valueType: ${barcode.valueType}")
-                Log.d("detectQrCode", "detectQrCode url: ${barcode.url}")
+                /*Log.d("detectQrCode", "detectQrCode url: ${barcode.url}")
                 Log.d("detectQrCode", "detectQrCode boundingBox: ${barcode.boundingBox}")
                 Log.d("detectQrCode", "detectQrCode raw rawValue: ${barcode.rawValue}")
                 Log.d("detectQrCode", "detectQrCode contactInfo: ${barcode.contactInfo}")
@@ -194,7 +200,7 @@ class MainActivity : AppCompatActivity() {
                 Log.d("detectQrCode", "detectQrCode geoPoint: ${barcode.geoPoint}")
                 Log.d("detectQrCode", "detectQrCode raw Bytes: ${barcode.rawBytes}")
                 Log.d("detectQrCode", "detectQrCode sma: ${barcode.sms}")
-                Log.d("detectQrCode", "detectQrCode wifi : ${barcode.wifi}")
+                Log.d("detectQrCode", "detectQrCode wifi : ${barcode.wifi}")*/
                 when (barcode.valueType) {
                             Barcode.TYPE_URL -> {
                         val url = barcode.url?.url
@@ -238,10 +244,44 @@ class MainActivity : AppCompatActivity() {
                     Barcode.TYPE_CONTACT_INFO -> {
                         val scannedData = barcode.rawValue
                         // Update TextView with scanned text
-                        runOnUiThread {
+                        /*runOnUiThread {
                             icYesPeople.visibility = View.GONE
                             icScan.visibility = View.VISIBLE
                             tvScannedData.text = scannedData // Display the scanned text
+                        }*/
+
+                        runOnUiThread {
+                            icYesPeople.visibility = View.GONE
+                            icScan.visibility = View.VISIBLE
+
+                            tvScannedData.setBackgroundColor(getColor(R.color.white))
+                            tvScannedData.setTextColor(
+                                ContextCompat.getColor(
+                                    this,
+                                    yellow
+                                )
+                            )
+                            tvScannedData.text = scannedData // Display the scanned text
+
+                            tvScannedData.setOnClickListener {
+
+                                // Copy the scanned text to the clipboard
+                                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                val clip = ClipData.newPlainText("Scanned QR Code", scannedData)
+                                clipboard.setPrimaryClip(clip)
+
+                                // Show a toast message indicating the text has been copied
+                                Toast.makeText(this, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+
+                                // Open the URL if it is a valid URL
+                                if (Patterns.WEB_URL.matcher(scannedData).matches()) {
+                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                        data = Uri.parse(scannedData)
+                                    }
+                                    startActivity(intent)
+                                }
+                            }
+
                         }
                     }
 
