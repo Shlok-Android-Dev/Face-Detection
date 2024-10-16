@@ -44,4 +44,4 @@ jobs:
         run: echo "${{ secrets.KEYSTORE }}" | base64 --decode > app/keystore.jks
 
       - name: Sign APK
-        run: ./gradlew assembleRelease -Pandroid.injected.signing.store.file=app/keystore.jks -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease -Pandroid.injected.signing.store.file=app/keystore.jks -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.TOKEN }} -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
