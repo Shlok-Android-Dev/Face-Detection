@@ -20,7 +20,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v1
         with:
-          node-version: 16
+           jdk version: 23
 
       - name: Install dependencies
         uses: bahmutov/npm-install@v1
